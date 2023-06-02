@@ -24,6 +24,7 @@ from jax import lax
 from jax.nn import initializers
 
 from flax.linen import dtypes, module, transforms
+from flax.linen.partitioning import param_with_axes
 from flax.typing import (
   Array,
   PRNGKey as PRNGKey,
@@ -154,6 +155,7 @@ def _normalize(
   use_scale: bool,
   bias_init: Initializer,
   scale_init: Initializer,
+  axes: Tuple[str, ...] = None,
 ):
   """Normalizes the input of a normalization layer and optionally applies a learned scale and bias.
 
@@ -173,6 +175,7 @@ def _normalize(
     use_scale: If true, scale the output.
     bias_init: Initialization function for the bias term.
     scale_init: Initialization function for the scaling function.
+    axes: A tuple of axis names over which to shard parameters.
 
   Returns:
     The normalized input.
@@ -191,15 +194,17 @@ def _normalize(
   mul = lax.rsqrt(var + epsilon)
   args = [x]
   if use_scale:
-    scale = mdl.param(
-      'scale', scale_init, reduced_feature_shape, param_dtype
+    scale = param_with_axes(
+      'scale', scale_init, reduced_feature_shape,
+      param_dtype, axes=axes, module=mdl
     ).reshape(feature_shape)
     mul *= scale
     args.append(scale)
   y *= mul
   if use_bias:
-    bias = mdl.param(
-      'bias', bias_init, reduced_feature_shape, param_dtype
+    bias = param_with_axes(
+      'bias', bias_init, reduced_feature_shape,
+      param_dtype, axes=axes, module=mdl
     ).reshape(feature_shape)
     y += bias
     args.append(bias)
@@ -284,6 +289,7 @@ class BatchNorm(Module):
       more details.
     use_fast_variance: If true, use a faster, but less numerically stable,
       calculation for the variance.
+    pjit_axis_names: A tuple of axis names.
   """
 
   use_running_average: Optional[bool] = None
@@ -299,6 +305,7 @@ class BatchNorm(Module):
   axis_name: Optional[str] = None
   axis_index_groups: Any = None
   use_fast_variance: bool = True
+  pjit_axis_name: Tuple[str, ...] = None
 
   @compact
   def __call__(
@@ -378,6 +385,7 @@ class BatchNorm(Module):
       self.use_scale,
       self.bias_init,
       self.scale_init,
+      self.pjit_axis_name,
     )
 
 
@@ -441,6 +449,7 @@ class LayerNorm(Module):
       more details.
     use_fast_variance: If true, use a faster, but less numerically stable,
       calculation for the variance.
+    pjit_axis_names: A tuple of axis names.
   """
 
   epsilon: float = 1e-6
@@ -455,6 +464,7 @@ class LayerNorm(Module):
   axis_name: Optional[str] = None
   axis_index_groups: Any = None
   use_fast_variance: bool = True
+  pjit_axis_name: Tuple[str, ...] = None
 
   @compact
   def __call__(self, x, *, mask: Optional[jax.Array] = None):
@@ -492,6 +502,7 @@ class LayerNorm(Module):
       self.use_scale,
       self.bias_init,
       self.scale_init,
+      self.pjit_axis_name,
     )
 
 
@@ -540,6 +551,7 @@ class RMSNorm(Module):
       more details.
     use_fast_variance: If true, use a faster, but less numerically stable,
       calculation for the variance.
+    pjit_axis_names: A tuple of axis names.
   """
 
   epsilon: float = 1e-6
@@ -552,6 +564,7 @@ class RMSNorm(Module):
   axis_name: Optional[str] = None
   axis_index_groups: Any = None
   use_fast_variance: bool = True
+  pjit_axis_name: Tuple[str, ...] = None
 
   @compact
   def __call__(self, x, *, mask: Optional[jax.Array] = None):
@@ -590,6 +603,7 @@ class RMSNorm(Module):
       self.use_scale,
       initializers.zeros,
       self.scale_init,
+      self.pjit_axis_name,
     )
 
 
@@ -660,6 +674,7 @@ class GroupNorm(Module):
       more details.
     use_fast_variance: If true, use a faster, but less numerically stable,
       calculation for the variance.
+    pjit_axis_names: A tuple of axis names.
   """
 
   num_groups: Optional[int] = 32
@@ -675,6 +690,7 @@ class GroupNorm(Module):
   axis_name: Optional[str] = None
   axis_index_groups: Any = None
   use_fast_variance: bool = True
+  pjit_axis_name: Tuple[str, ...] = None
 
   @compact
   def __call__(self, x, *, mask: Optional[jax.Array] = None):
@@ -889,6 +905,7 @@ class InstanceNorm(Module):
       self.use_scale,
       self.bias_init,
       self.scale_init,
+      self.pjit_axis_name,
     )
 
 
