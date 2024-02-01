@@ -47,6 +47,7 @@ from flax.typing import (
   ConvGeneralDilatedT,
   PaddingLike,
   LaxPadding,
+  Tuple,
 )
 
 
